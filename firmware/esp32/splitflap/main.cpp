@@ -36,7 +36,7 @@ SerialTask serialTask(splitflapTask, 0);
 DisplayTask displayTask(splitflapTask, 0);
 #endif
 
-//ClockTask clockTask(splitflapTask, displayTask, serialTask, 0);
+ClockTask clockTask(splitflapTask, displayTask, serialTask, 0);
 
 void setup() {
   serialTask.begin();
@@ -60,7 +60,7 @@ void setup() {
   displayTask.begin();
   #endif
 
-  //clockTask.begin();
+  clockTask.begin();
 
   logDebugBuildInfo(serialTask);
 

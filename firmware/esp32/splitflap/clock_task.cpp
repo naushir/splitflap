@@ -18,19 +18,20 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
 
 void ClockTask::connectWiFi()
 {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     char buf[256];
 
-    splitflap_task_.showString("WIFI. ", NUM_MODULES, true);
+    splitflap_task_.showString("wifi", NUM_MODULES, true);
     logger_.log("Establishing connectWiFiion to WiFi..");
-    snprintf(buf, sizeof(buf), "Wifi connectWiFiing to %s", WIFI_SSID);
+    snprintf(buf, sizeof(buf), "Wifi connecting to %s", WIFI_SSID);
     display_task_.setMessage(1, String(buf));
+
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
     }
 
-    splitflap_task_.showString("READY.", NUM_MODULES, true);
-    snprintf(buf, sizeof(buf), "ConnectWiFied to network %s", WIFI_SSID);
+    splitflap_task_.showString("ready", NUM_MODULES, true);
+    snprintf(buf, sizeof(buf), "Connected to network %s", WIFI_SSID);
     logger_.log(buf);
 }
 
@@ -38,16 +39,21 @@ void ClockTask::syncNTP()
 {
     char buf[256];
 
+    if (sntp_enabled())
+        sntp_stop();
+
     // Sync SNTP
     // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system_time.html
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
     sntp_set_sync_mode(SNTP_SYNC_MODE_IMMED);
-    sntp_setservername(1, "pool.ntp.org");
-    sntp_set_sync_interval(15 * 60 * 1000);
+
+    sntp_setservername(0, (char *)"pool.ntp.org");
+    sntp_setservername(1, (char *)"europe.pool.ntp.org");
+    //sntp_set_sync_interval(15 * 60 * 1000);
     sntp_init();
     delay(2000);
 
-    splitflap_task_.showString("SYNC  ", NUM_MODULES, true);
+    splitflap_task_.showString("sync  ", NUM_MODULES, true);
     logger_.log("Waiting for NTP time sync...");
     display_task_.setMessage(1, "Syncing NTP time");
 
@@ -57,7 +63,7 @@ void ClockTask::syncNTP()
     while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
         snprintf(buf, sizeof(buf), "Waiting for system time to be set... (%d/%d)", retry, retry_count);
         logger_.log(buf);
-        snprintf(buf, sizeof(buf), "SYNC%d", retry);
+        snprintf(buf, sizeof(buf), "sync%02d", retry);
         splitflap_task_.showString(buf, NUM_MODULES, false);
         delay(2000);
     }
@@ -76,23 +82,18 @@ void ClockTask::syncNTP()
 
 void ClockTask::showClock(time_t now)
 {
-    char buf[NUM_MODULES];
+    char buf[NUM_MODULES + 1];
     struct tm ti = { 0 };
     struct tm lti = { 0 };
+
     localtime_r(&now, &ti);
     localtime_r(&lastTime_, &lti);
 
     if (lti.tm_sec != ti.tm_sec || lti.tm_min != ti.tm_min || lti.tm_hour != ti.tm_hour) {
 
+        strftime(buf, sizeof(buf), "%I%M", &ti);
         if (NUM_MODULES == 6)
-        {
-            strftime(buf, sizeof(buf), "%I.%M", &ti);
-            buf[NUM_MODULES-1] = (ti.tm_hour >= 12) ? 'P' : 'A';
-        }
-        else if (NUM_MODULES == 4)
-        {
-            strftime(buf, sizeof(buf), "%I%M", &ti);
-        }
+            snprintf(buf + 4, sizeof(buf) - 4, "%s", (ti.tm_hour >= 12) ? "pm" : "am");
 
         splitflap_task_.showString(buf, NUM_MODULES, false);
         lastTime_ = now;
@@ -102,7 +103,7 @@ void ClockTask::showClock(time_t now)
 void ClockTask::checkRecalibration()
 {
     unsigned long now = millis();
-    if (now - lastCalibration_ > 44 * 60 * 1000) {
+    if (now - lastCalibration_ > 144 * 60 * 1000) {
         splitflap_task_.resetAll();
         lastCalibration_ = now;
     }
@@ -113,7 +114,7 @@ void ClockTask::run()
     connectWiFi();
     syncNTP();
 
-    while(1) {
+    while (1) {
         time_t now;
 
         time(&now);

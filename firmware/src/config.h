@@ -10,7 +10,7 @@
 // 2) General Settings
 #ifndef NUM_MODULES
 // Set NUM_MODULES in platformio.ini instead when using ESP32/PlatformIO
-#define NUM_MODULES (12)
+#define NUM_MODULES (6)
 #endif
 
 
