@@ -23,6 +23,7 @@
 #include "../core/configuration.h"
 #include "../core/splitflap_task.h"
 #include "debug_build_info.h"
+#include "clock_task.h"
 #include "display_task.h"
 #include "serial_task.h"
 
@@ -35,20 +36,7 @@ SerialTask serialTask(splitflapTask, 0);
 DisplayTask displayTask(splitflapTask, 0);
 #endif
 
-#ifdef CHAINLINK_BASE
-#include "../base/base_supervisor_task.h"
-BaseSupervisorTask baseSupervisorTask(splitflapTask, serialTask, 0);
-#endif
-
-#if MQTT
-#include "mqtt_task.h"
-MQTTTask mqttTask(splitflapTask, serialTask, 0);
-#endif
-
-#if HTTP
-#include "http_task.h"
-HTTPTask httpTask(splitflapTask, displayTask, serialTask, 0);
-#endif
+//ClockTask clockTask(splitflapTask, displayTask, serialTask, 0);
 
 void setup() {
   serialTask.begin();
@@ -72,17 +60,7 @@ void setup() {
   displayTask.begin();
   #endif
 
-  #if MQTT
-  mqttTask.begin();
-  #endif
-
-  #if HTTP
-  httpTask.begin();
-  #endif
-
-  #ifdef CHAINLINK_BASE
-  baseSupervisorTask.begin();
-  #endif
+  //clockTask.begin();
 
   logDebugBuildInfo(serialTask);
 
