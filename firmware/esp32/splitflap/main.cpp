@@ -26,6 +26,7 @@
 #include "clock_task.h"
 #include "display_task.h"
 #include "serial_task.h"
+#include "ota_task.h"
 
 Configuration config;
 
@@ -34,6 +35,10 @@ SerialTask serialTask(splitflapTask, 0);
 
 #if ENABLE_DISPLAY
 DisplayTask displayTask(splitflapTask, 0);
+#endif
+
+#if ENABLE_OTA
+OtaTask otaTask(serialTask, 0);
 #endif
 
 ClockTask clockTask(splitflapTask, displayTask, serialTask, 0);
@@ -58,6 +63,10 @@ void setup() {
 
   #if ENABLE_DISPLAY
   displayTask.begin();
+  #endif
+
+  #if ENABLE_OTA
+  otaTask.begin();
   #endif
 
   clockTask.begin();
