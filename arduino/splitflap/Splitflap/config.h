@@ -9,7 +9,7 @@
 
 // 2) General Settings
 #ifndef NUM_MODULES
-#define NUM_MODULES (12)
+#define NUM_MODULES (6)
 #endif
 
 // Whether to force a full rotation when the same letter is specified again

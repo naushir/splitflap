@@ -13,6 +13,7 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+#include <ctype.h>
 
 #include <esp_task_wdt.h>
 
@@ -283,7 +284,7 @@ void SplitflapTask::runUpdate() {
 
 int8_t SplitflapTask::findFlapIndex(uint8_t character) {
     for (int8_t i = 0; i < NUM_FLAPS; i++) {
-        if (character == flaps[i]) {
+        if (tolower(character) == flaps[i]) {
           return i;
         }
     }
