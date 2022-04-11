@@ -1,8 +1,6 @@
 #include "clock_task.h"
 
-#include <lwip/apps/sntp.h>
-#include <json11.hpp>
-
+#include "esp_sntp.h"
 #include "secrets.h"
 
 // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
@@ -14,92 +12,106 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
         display_task_(display_task),
         logger_(logger),
         wifi_client_(),
-        last_(0)
+        lastTime_(0), lastCalibration_(0)
 {
 }
 
-void ClockTask::init()
+void ClockTask::connectWiFi()
 {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     char buf[256];
 
-    logger_.log("Establishing connection to WiFi..");
-    snprintf(buf, sizeof(buf), "Wifi connecting to %s", WIFI_SSID);
+    splitflap_task_.showString("WIFI. ", NUM_MODULES, true);
+    logger_.log("Establishing connectWiFiion to WiFi..");
+    snprintf(buf, sizeof(buf), "Wifi connectWiFiing to %s", WIFI_SSID);
     display_task_.setMessage(1, String(buf));
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
     }
 
-    snprintf(buf, sizeof(buf), "Connected to network %s", WIFI_SSID);
+    splitflap_task_.showString("READY.", NUM_MODULES, true);
+    snprintf(buf, sizeof(buf), "ConnectWiFied to network %s", WIFI_SSID);
     logger_.log(buf);
+}
+
+void ClockTask::syncNTP()
+{
+    char buf[256];
 
     // Sync SNTP
     // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system_time.html
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
-
-    char server[] = "pool.ntp.org";
-    sntp_setservername(0, server);
-    //sntp_set_sync_interval(15 * 60 * 1000);
+    sntp_set_sync_mode(SNTP_SYNC_MODE_IMMED);
+    sntp_setservername(1, "pool.ntp.org");
+    sntp_set_sync_interval(15 * 60 * 1000);
     sntp_init();
+    delay(2000);
 
+    splitflap_task_.showString("SYNC  ", NUM_MODULES, true);
     logger_.log("Waiting for NTP time sync...");
-    snprintf(buf, sizeof(buf), "Syncing NTP time via %s...", server);
-    display_task_.setMessage(1, String(buf));
-    time_t now;
-    while (time(&now), now < 1625099485) {
-        delay(1000);
+    display_task_.setMessage(1, "Syncing NTP time");
+
+    // Wait for the time to be set.
+    int retry = 0;
+    const int retry_count = 15;
+    while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
+        snprintf(buf, sizeof(buf), "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+        logger_.log(buf);
+        snprintf(buf, sizeof(buf), "SYNC%d", retry);
+        splitflap_task_.showString(buf, NUM_MODULES, false);
+        delay(2000);
     }
+
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
 
     setenv("TZ", TIMEZONE, 1);
     tzset();
-    strftime(buf, sizeof(buf), "Got time: %Y-%m-%d %H:%M:%S", localtime(&now));
+
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    strftime(buf, sizeof(buf), "Got time: %Y-%m-%d %H:%M:%S", &timeinfo);
     logger_.log(buf);
 }
 
 void ClockTask::showClock(time_t now)
 {
     char buf[NUM_MODULES];
+    struct tm ti = { 0 };
+    struct tm lti = { 0 };
+    localtime_r(&now, &ti);
+    localtime_r(&lastTime_, &lti);
 
-    if (last_ != now) {
-        const struct tm *lt = localtime(&now);
+    if (lti.tm_sec != ti.tm_sec || lti.tm_min != ti.tm_min || lti.tm_hour != ti.tm_hour) {
 
-        strftime(buf, sizeof(buf), "%I.%M", lt);
-        buf[NUM_MODULES-1] = lt->tm_hour >=12 ? 'p' : 'a';
+        if (NUM_MODULES == 6)
+        {
+            strftime(buf, sizeof(buf), "%I.%M", &ti);
+            buf[NUM_MODULES-1] = (ti.tm_hour >= 12) ? 'P' : 'A';
+        }
+        else if (NUM_MODULES == 4)
+        {
+            strftime(buf, sizeof(buf), "%I%M", &ti);
+        }
 
         splitflap_task_.showString(buf, NUM_MODULES, false);
-        last_ = now;
+        lastTime_ = now;
+    }
+}
+
+void ClockTask::checkRecalibration()
+{
+    unsigned long now = millis();
+    if (now - lastCalibration_ > 44 * 60 * 1000) {
+        splitflap_task_.resetAll();
+        lastCalibration_ = now;
     }
 }
 
 void ClockTask::run()
 {
-    init();
-
-    String wifi_status;
-    switch (WiFi.status()) {
-        case WL_IDLE_STATUS:
-            wifi_status = "Idle";
-            break;
-        case WL_NO_SSID_AVAIL:
-            wifi_status = "No SSID";
-            break;
-        case WL_CONNECTED:
-            wifi_status = String(WIFI_SSID) + " " + WiFi.localIP().toString();
-            break;
-        case WL_CONNECT_FAILED:
-            wifi_status = "Connection failed";
-            break;
-        case WL_CONNECTION_LOST:
-            wifi_status = "Connection lost";
-            break;
-        case WL_DISCONNECTED:
-            wifi_status = "Disconnected";
-            break;
-        default:
-            wifi_status = "Unknown";
-            break;
-    }
-    display_task_.setMessage(1, String("Wifi: ") + wifi_status);
+    connectWiFi();
+    syncNTP();
 
     while(1) {
         time_t now;
@@ -107,6 +119,12 @@ void ClockTask::run()
         time(&now);
         showClock(now);
 
+        if (WiFi.status() != WL_CONNECTED) {
+            WiFi.disconnect();
+            connectWiFi();
+        }
+
+        checkRecalibration();
         delay(250);
     }
 }
