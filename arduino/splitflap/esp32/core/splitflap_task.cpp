@@ -321,7 +321,7 @@ void SplitflapTask::showString(const char* str, uint8_t length, bool force_full_
     Command command = {};
     command.command_type = CommandType::MODULES;
     for (uint8_t i = 0; i < length; i++) {
-        int8_t index = findFlapIndex(str[i]);
+        int8_t index = findFlapIndex(str[REVERSE_STRING ? length - i - 1 : i]);
         if (index != -1) {
             if (force_full_rotation || index != modules[i]->GetTargetFlapIndex()) {
                 command.data.module_command[i] = QCMD_FLAP + index;
