@@ -48,11 +48,12 @@ void setup() {
   displayTask.begin();
   #endif
 
+  clockTask.begin();
+
   #if ENABLE_OTA
   otaTask.begin();
   #endif
 
-  clockTask.begin();
 
   // Delete the default Arduino loopTask to free up Core 1
   vTaskDelete(NULL);

@@ -12,7 +12,7 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
         display_task_(display_task),
         logger_(logger),
         wifi_client_(),
-        lastTime_(0), lastCalibration_(0)
+        lastTime_(0), lastCalibration_(0), sleep_(false)
 {
 }
 
@@ -20,8 +20,8 @@ void ClockTask::connectWiFi()
 {
     char buf[256];
 
-    splitflap_task_.showString("wifi", NUM_MODULES, true);
-    logger_.log("Establishing connectWiFiion to WiFi..");
+    splitflap_task_.showString("wifi  ", NUM_MODULES, true);
+    logger_.log("Establishing connection to WiFi..");
     snprintf(buf, sizeof(buf), "Wifi connecting to %s", WIFI_SSID);
     display_task_.setMessage(1, String(buf));
 
@@ -100,6 +100,45 @@ void ClockTask::showClock(time_t now)
     }
 }
 
+void ClockTask::showDate(time_t now)
+{
+    char buf[NUM_MODULES + 1];
+    struct tm ti = { 0 };
+
+    localtime_r(&now, &ti);
+
+    if (ti.tm_min && (ti.tm_min % 24 == 0) && (ti.tm_sec == 4)) {
+
+        if (NUM_MODULES == 6)
+            strftime(buf, sizeof(buf), "%d%m%y", &ti);
+        else
+            strftime(buf, sizeof(buf), "%d%m", &ti);
+
+        splitflap_task_.showString(buf, NUM_MODULES, false);
+        delay(30 * 1000);
+    }
+}
+
+void ClockTask::updateState(time_t now)
+{
+    struct tm ti = { 0 };
+
+    localtime_r(&now, &ti);
+
+    const int sleepStart = 23;
+    const int sleepEnd = 6;
+
+    if (!sleep_ && (ti.tm_hour >= sleepStart || ti.tm_hour < sleepEnd))
+    {
+        splitflap_task_.showString("      ", NUM_MODULES, false);
+        sleep_ = true;
+    }
+    else if (sleep_ && (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart))
+    {
+        sleep_ = false;
+    }
+}
+
 void ClockTask::checkRecalibration()
 {
     unsigned long now = millis();
@@ -111,21 +150,26 @@ void ClockTask::checkRecalibration()
 
 void ClockTask::run()
 {
+    lastCalibration_ = millis();
     connectWiFi();
     syncNTP();
 
     while (1) {
         time_t now;
-
         time(&now);
-        showClock(now);
 
-        if (WiFi.status() != WL_CONNECTED) {
-            WiFi.disconnect();
-            connectWiFi();
+        if (!sleep_) {
+            showClock(now);
+            showDate(now);
+            checkRecalibration();
+
+            if (WiFi.status() != WL_CONNECTED) {
+                WiFi.disconnect();
+                connectWiFi();
+            }
         }
 
-        checkRecalibration();
+        updateState(now);
         delay(250);
     }
 }
