@@ -25,6 +25,8 @@ class ClockTask : public Task<ClockTask>
         void connectWiFi();
         void syncNTP();
         void showClock(time_t now);
+        void showDate(time_t now);
+        void updateState(time_t now);
         void checkRecalibration();
 
         SplitflapTask& splitflap_task_;
@@ -33,4 +35,5 @@ class ClockTask : public Task<ClockTask>
         WiFiClient wifi_client_;
         time_t lastTime_;
         unsigned long lastCalibration_;
+        bool sleep_;
 };

@@ -65,11 +65,12 @@ void setup() {
   displayTask.begin();
   #endif
 
+  clockTask.begin();
+
   #if ENABLE_OTA
   otaTask.begin();
   #endif
 
-  clockTask.begin();
 
   logDebugBuildInfo(serialTask);
 
