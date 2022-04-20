@@ -39,5 +39,6 @@ class ClockTask : public Task<ClockTask>
         time_t lastTime_;
         unsigned long lastCalibration_;
         bool sleep_;
+        bool sleepToggle_;
         OneButton button_;
 };
