@@ -1,6 +1,3 @@
-#include <jled.h>
-#include <OneButton.h>
-
 #include "clock_task.h"
 
 #include "esp_sntp.h"
@@ -17,6 +14,30 @@ const int ledR = 2;
 const int ledG = 15;
 const int ledB = 13;
 
+JLed whiteBreathe[] = {
+    JLed(ledR).Breathe(4500).LowActive().MaxBrightness(0.2 * 256),
+    JLed(ledG).Breathe(4500).LowActive().MaxBrightness(0.5 * 256),
+    JLed(ledB).Breathe(4500).LowActive().MaxBrightness(0.9 * 256)
+};
+
+JLed redBreathe[] = {
+    JLed(ledR).Breathe(4500).LowActive().MaxBrightness(0.8 * 256),
+    JLed(ledG).Breathe(4500).LowActive().MaxBrightness(0),
+    JLed(ledB).Breathe(4500).LowActive().MaxBrightness(0)
+};
+
+JLed blueBlink[] = {
+    JLed(ledR).Blink(200, 200).LowActive().MaxBrightness(0),
+    JLed(ledG).Blink(200, 200).LowActive().MaxBrightness(0),
+    JLed(ledB).Blink(200, 200).LowActive().MaxBrightness(0.8 * 256),
+};
+
+JLed orangeBlink[] = {
+    JLed(ledR).Blink(200, 200).LowActive().MaxBrightness(0.2 * 256),
+    JLed(ledG).Blink(200, 200).LowActive().MaxBrightness(0),
+    JLed(ledB).Blink(200, 200).LowActive().MaxBrightness(0.2 * 256),
+};
+
 ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, Logger& logger, const uint8_t task_core) :
         Task("Clock", 8192, 1, task_core),
         splitflap_task_(splitflap_task),
@@ -25,7 +46,8 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
         wifi_client_(),
         lastTime_(0), lastCalibration_(0),
         sleep_(false), sleepToggle_(false),
-        button_(buttonPin, true, true)
+        button_(buttonPin, true, true),
+        leds_(JLedSequence::eMode::PARALLEL, whiteBreathe)
 {
 }
 
@@ -142,12 +164,16 @@ void ClockTask::updateState(time_t now)
     {
         logger_.log("Entering sleep");
         splitflap_task_.showString("      ", NUM_MODULES, false);
+        leds_.Stop();
+        leds_ = JLedSequence(JLedSequence::eMode::PARALLEL, redBreathe).Forever();
         sleep_ = true;
         sleepToggle_ = false;
     }
     else if (sleep_ && (sleepToggle_ || (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart)))
     {
         logger_.log("Waking from sleep");
+        leds_.Stop();
+        leds_ = JLedSequence(JLedSequence::eMode::PARALLEL, whiteBreathe).Forever();
         sleep_ = false;
         sleepToggle_ = false;
     }
@@ -165,7 +191,14 @@ void ClockTask::checkRecalibration()
 void ClockTask::reset()
 {
     logger_.log("Restarting...");
-    delay(2000);
+
+    leds_.Stop();
+    leds_ = JLedSequence(JLedSequence::eMode::PARALLEL, blueBlink).Forever();
+
+    unsigned long now = millis();
+    while (millis() - now < 4000)
+        leds_.Update();
+
     ESP.restart();
 }
 
@@ -185,6 +218,9 @@ void ClockTask::run()
         ((ClockTask *)p)->sleepToggle_ = true;
     }, this);
 
+    leds_.Stop();
+    leds_ = JLedSequence(JLedSequence::eMode::PARALLEL, whiteBreathe).Forever();
+
     while (1) {
         time_t now;
         time(&now);
@@ -200,6 +236,7 @@ void ClockTask::run()
             }
         }
 
+        leds_.Update();
         button_.tick();
         updateState(now);
     }
