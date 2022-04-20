@@ -32,6 +32,8 @@ class ClockTask : public Task<ClockTask>
         void updateState(time_t now);
         void checkRecalibration();
         void reset();
+        void wait(unsigned long msec);
+        void setLED(JLed seq[3]);
 
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
