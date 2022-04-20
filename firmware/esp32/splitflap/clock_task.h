@@ -5,6 +5,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include <OneButton.h>
+
 #include "../core/logger.h"
 #include "../core/splitflap_task.h"
 #include "../core/task.h"
@@ -28,6 +30,7 @@ class ClockTask : public Task<ClockTask>
         void showDate(time_t now);
         void updateState(time_t now);
         void checkRecalibration();
+        void reset();
 
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
@@ -36,4 +39,5 @@ class ClockTask : public Task<ClockTask>
         time_t lastTime_;
         unsigned long lastCalibration_;
         bool sleep_;
+        OneButton button_;
 };
