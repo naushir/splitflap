@@ -9,6 +9,9 @@
 // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "GMT0BST,M3.5.0/1,M10.5.0"
 
+const int sleepStart = 23;
+const int sleepEnd = 6;
+
 const int buttonPin = 12;
 const int ledR = 2;
 const int ledG = 15;
@@ -21,7 +24,8 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
         logger_(logger),
         wifi_client_(),
         lastTime_(0), lastCalibration_(0),
-        sleep_(false), button_(buttonPin, true, true)
+        sleep_(false), sleepToggle_(false),
+        button_(buttonPin, true, true)
 {
 }
 
@@ -134,17 +138,18 @@ void ClockTask::updateState(time_t now)
 
     localtime_r(&now, &ti);
 
-    const int sleepStart = 23;
-    const int sleepEnd = 6;
-
-    if (!sleep_ && (ti.tm_hour >= sleepStart || ti.tm_hour < sleepEnd))
+    if (!sleep_ && (sleepToggle_ || (ti.tm_hour >= sleepStart || ti.tm_hour < sleepEnd)))
     {
+        logger_.log("Entering sleep");
         splitflap_task_.showString("      ", NUM_MODULES, false);
         sleep_ = true;
+        sleepToggle_ = false;
     }
-    else if (sleep_ && (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart))
+    else if (sleep_ && (sleepToggle_ || (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart)))
     {
+        logger_.log("Waking from sleep");
         sleep_ = false;
+        sleepToggle_ = false;
     }
 }
 
@@ -171,8 +176,14 @@ void ClockTask::run()
     syncNTP();
 
     button_.setPressTicks(5000);
-    button_.attachDuringLongPress([](void *p) { ((ClockTask*)p)->reset(); }, this);
-    button_.attachClick([](void *p) { ((ClockTask*)p)->logger_.log("Click press"); }, this);
+    button_.attachDuringLongPress([](void *p) {
+        ((ClockTask *)p)->logger_.log("Reset press");
+        ((ClockTask *)p)->reset();
+    }, this);
+    button_.attachClick([](void *p){
+        ((ClockTask *)p)->logger_.log("Sleep press");
+        ((ClockTask *)p)->sleepToggle_ = true;
+    }, this);
 
     while (1) {
         time_t now;
