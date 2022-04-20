@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include <jled.h>
 #include <OneButton.h>
 
 #include "../core/logger.h"
@@ -41,4 +42,5 @@ class ClockTask : public Task<ClockTask>
         bool sleep_;
         bool sleepToggle_;
         OneButton button_;
+        JLedSequence leds_;
 };
