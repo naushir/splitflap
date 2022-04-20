@@ -1,3 +1,6 @@
+#include <jled.h>
+#include <OneButton.h>
+
 #include "clock_task.h"
 
 #include "esp_sntp.h"
@@ -6,13 +9,19 @@
 // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "GMT0BST,M3.5.0/1,M10.5.0"
 
+const int buttonPin = 12;
+const int ledR = 2;
+const int ledG = 15;
+const int ledB = 13;
+
 ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, Logger& logger, const uint8_t task_core) :
         Task("Clock", 8192, 1, task_core),
         splitflap_task_(splitflap_task),
         display_task_(display_task),
         logger_(logger),
         wifi_client_(),
-        lastTime_(0), lastCalibration_(0), sleep_(false)
+        lastTime_(0), lastCalibration_(0),
+        sleep_(false), button_(buttonPin, true, true)
 {
 }
 
@@ -148,11 +157,22 @@ void ClockTask::checkRecalibration()
     }
 }
 
+void ClockTask::reset()
+{
+    logger_.log("Restarting...");
+    delay(2000);
+    ESP.restart();
+}
+
 void ClockTask::run()
 {
     lastCalibration_ = millis();
     connectWiFi();
     syncNTP();
+
+    button_.setPressTicks(5000);
+    button_.attachDuringLongPress([](void *p) { ((ClockTask*)p)->reset(); }, this);
+    button_.attachClick([](void *p) { ((ClockTask*)p)->logger_.log("Click press"); }, this);
 
     while (1) {
         time_t now;
@@ -169,7 +189,7 @@ void ClockTask::run()
             }
         }
 
+        button_.tick();
         updateState(now);
-        delay(250);
     }
 }

@@ -37,7 +37,7 @@ DisplayTask displayTask(splitflapTask, 0);
 OtaTask otaTask(serialTask, 0);
 #endif
 
-ClockTask clockTask(splitflapTask, displayTask, serialTask, 0);
+ClockTask clockTask(splitflapTask, displayTask, serialTask, 1);
 
 void setup() {
   serialTask.begin();

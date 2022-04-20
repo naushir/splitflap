@@ -63,7 +63,7 @@ class OtaTask : public Task<OtaTask>
                 })
 
                 .onError([this, &buf](ota_error_t error) {
-                    const char *err;
+                    const char *err = "";
                     if (error == OTA_AUTH_ERROR) err  = "Auth Failed";
                     else if (error == OTA_BEGIN_ERROR) err = "Begin Failed";
                     else if (error == OTA_CONNECT_ERROR) err = "Connect Failed";
