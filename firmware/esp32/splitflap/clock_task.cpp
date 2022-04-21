@@ -1,5 +1,6 @@
-#include "clock_task.h"
+#include <Preferences.h>
 
+#include "clock_task.h"
 #include "esp_sntp.h"
 
 // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
@@ -55,46 +56,71 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
         leds_(JLedSequence(JLedSequence::eMode::PARALLEL, yellowBlink).Forever())
 {
         button_.setPressTicks(5000);
-        button_.attachDuringLongPress([](void *p) {
-            ((ClockTask *)p)->logger_.log("Reset press");
-            ((ClockTask *)p)->reset();
-        }, this);
+        button_.attachDuringLongPress(
+            [](void *p)
+            {
+                ((ClockTask *)p)->logger_.log("Reset press");
+                ((ClockTask *)p)->reset();
+            }, this);
 
-        button_.attachClick([](void *p){
-            ((ClockTask *)p)->logger_.log("Sleep press");
-            ((ClockTask *)p)->sleepToggle_ = !((ClockTask *)p)->sleepToggle_;
-        }, this);
+        button_.attachClick(
+            [](void *p)
+            {
+                ((ClockTask *)p)->logger_.log("Sleep press");
+                ((ClockTask *)p)->sleepToggle_ = !((ClockTask *)p)->sleepToggle_;
+            }, this);
 }
 
-void ClockTask::connectWiFi()
+void ClockTask::provision()
 {
     char buf[256];
 
     splitflap_task_.showString("wifi  ", NUM_MODULES, true);
-    logger_.log("Establishing connection to WiFi");
 
     WiFi.mode(WIFI_STA);
     wifiManager_.setConfigPortalBlocking(false);
-    WiFiManagerParameter sleepTime("sleep_time", "Sleep Time (hr)", "23", 6);
-    WiFiManagerParameter wakeTime("wake_time", "Wake Time (hr)", "06", 6);
-    WiFiManagerParameter dateDisplay("date_display", "Date display (min)", "24", 6);
+
+    WiFiManagerParameter sleepTime("sleep_time", "Sleep Time (hr)", "23", 4);
+    WiFiManagerParameter wakeTime("wake_time", "Wake Time (hr)", "06", 4);
+    WiFiManagerParameter dateDisplay("date_display", "Date display (min)", "24", 4);
     wifiManager_.addParameter(&sleepTime);
     wifiManager_.addParameter(&wakeTime);
     wifiManager_.addParameter(&dateDisplay);
-    wifiManager_.autoConnect("Splitflap", "splitflap");
 
-    while (WiFi.status() != WL_CONNECTED) {
+    wifiManager_.autoConnect("Splitflap", "splitflap");
+    while (WiFi.status() != WL_CONNECTED)
+    {
         wifiManager_.process();
         wait(1);
     }
 
-    sleepStart = atoi(sleepTime.getValue());
-    sleepEnd = atoi(wakeTime.getValue());
-    dateMin = atoi(dateDisplay.getValue());
+    Preferences p;
+    p.begin("clock");
+    if (p.getInt("provisioned", 0))
+    {
+        sleepStart = atoi(sleepTime.getValue());
+        sleepEnd = atoi(wakeTime.getValue());
+        dateMin = atoi(dateDisplay.getValue());
+
+        logger_.log("Saving config values");
+        p.putInt("sleep_start", sleepStart);
+        p.putInt("sleep_end", sleepEnd);
+        p.putInt("date_min", dateMin);
+        p.putInt("provisioned", 1);
+    }
+    else
+    {
+        sleepStart = p.getInt("sleep_start", sleepStart);
+        sleepEnd = p.getInt("sleep_end", sleepEnd);
+        dateMin = p.getInt("date_min", dateMin);
+    }
+    p.end();
+
+    splitflap_task_.showString("ready", NUM_MODULES, true);
+
     snprintf(buf, sizeof(buf), "Sleep time %d/%d : Date display %d", sleepStart, sleepEnd, dateMin);
     logger_.log(buf);
 
-    splitflap_task_.showString("ready", NUM_MODULES, true);
     snprintf(buf, sizeof(buf), "Connected to network %s", wifiManager_.getWiFiSSID().c_str());
     display_task_.setMessage(1, String(buf));
     logger_.log(buf);
@@ -125,7 +151,8 @@ void ClockTask::syncNTP()
     // Wait for the time to be set.
     int retry = 0;
     const int retry_count = 15;
-    while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
+    while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count)
+    {
         snprintf(buf, sizeof(buf), "Waiting for system time to be set... (%d/%d)", retry, retry_count);
         logger_.log(buf);
         snprintf(buf, sizeof(buf), "sync%02d", retry);
@@ -155,8 +182,8 @@ void ClockTask::showClock(time_t now)
     localtime_r(&now, &ti);
     localtime_r(&lastTime_, &lti);
 
-    if (lti.tm_sec != ti.tm_sec || lti.tm_min != ti.tm_min || lti.tm_hour != ti.tm_hour) {
-
+    if (lti.tm_sec != ti.tm_sec || lti.tm_min != ti.tm_min || lti.tm_hour != ti.tm_hour)
+    {
         strftime(buf, sizeof(buf), "%I%M", &ti);
         if (NUM_MODULES == 6)
             snprintf(buf + 4, sizeof(buf) - 4, "%s", (ti.tm_hour >= 12) ? "pm" : "am");
@@ -176,8 +203,8 @@ void ClockTask::showDate(time_t now)
 
     localtime_r(&now, &ti);
 
-    if (ti.tm_min && (ti.tm_min % dateMin == 0) && (ti.tm_sec == 4)) {
-
+    if (ti.tm_min && (ti.tm_min % dateMin == 0) && (ti.tm_sec == 4))
+    {
         if (NUM_MODULES == 6)
             strftime(buf, sizeof(buf), "%d%m%y", &ti);
         else
@@ -213,7 +240,8 @@ void ClockTask::updateState(time_t now)
 void ClockTask::checkRecalibration()
 {
     unsigned long now = millis();
-    if (now - lastCalibration_ > 144 * 60 * 1000) {
+    if (now - lastCalibration_ > 144 * 60 * 1000)
+    {
         splitflap_task_.resetAll();
         lastCalibration_ = now;
     }
@@ -223,6 +251,11 @@ void ClockTask::reset()
 {
     setLED(blueBlink);
     wait(5000, false);
+
+    Preferences p;
+    p.begin("clock");
+    p.clear();
+    p.end();
 
     wifiManager_.resetSettings();
     logger_.log("Restarting...");
@@ -250,24 +283,24 @@ void ClockTask::setLED(JLed seq[3])
 void ClockTask::run()
 {
     lastCalibration_ = millis();
-    connectWiFi();
+    provision();
     syncNTP();
 
     setLED(whiteBreathe);
 
-    while (1) {
+    while (1)
+    {
         time_t now;
         time(&now);
 
-        if (!sleep_) {
+        if (!sleep_)
+        {
             showClock(now);
             showDate(now);
             checkRecalibration();
 
-            if (WiFi.status() != WL_CONNECTED) {
-                WiFi.disconnect();
-                connectWiFi();
-            }
+            if (WiFi.status() != WL_CONNECTED)
+                WiFi.reconnect();
         }
 
         updateState(now);

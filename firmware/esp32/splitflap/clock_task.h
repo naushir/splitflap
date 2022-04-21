@@ -24,7 +24,7 @@ class ClockTask : public Task<ClockTask>
         void run();
 
     private:
-        void connectWiFi();
+        void provision();
         void syncNTP();
         void showClock(time_t now);
         void showDate(time_t now);
