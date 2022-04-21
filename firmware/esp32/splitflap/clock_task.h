@@ -3,10 +3,9 @@
 #include <time.h>
 
 #include <Arduino.h>
-#include <WiFi.h>
-
 #include <jled.h>
 #include <OneButton.h>
+#include <WiFiManager.h>
 
 #include "../core/logger.h"
 #include "../core/splitflap_task.h"
@@ -32,17 +31,17 @@ class ClockTask : public Task<ClockTask>
         void updateState(time_t now);
         void checkRecalibration();
         void reset();
-        void wait(unsigned long msec);
+        void wait(unsigned long msec, bool buttonUpdate = true);
         void setLED(JLed seq[3]);
 
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
         Logger& logger_;
-        WiFiClient wifi_client_;
         time_t lastTime_;
         unsigned long lastCalibration_;
         bool sleep_;
         bool sleepToggle_;
         OneButton button_;
         JLedSequence leds_;
+        WiFiManager wifiManager_;
 };
