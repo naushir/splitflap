@@ -62,7 +62,7 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
 
         button_.attachClick([](void *p){
             ((ClockTask *)p)->logger_.log("Sleep press");
-            ((ClockTask *)p)->sleepToggle_ = true;
+            ((ClockTask *)p)->sleepToggle_ = !((ClockTask *)p)->sleepToggle_;
         }, this);
 }
 
@@ -200,9 +200,8 @@ void ClockTask::updateState(time_t now)
         splitflap_task_.showString("      ", NUM_MODULES, false);
         setLED(redBreathe);
         sleep_ = true;
-        sleepToggle_ = false;
     }
-    else if (sleep_ && (sleepToggle_ || (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart)))
+    else if (sleep_ && (!sleepToggle_ && (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart)))
     {
         logger_.log("Waking from sleep");
         setLED(whiteBreathe);
