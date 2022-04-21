@@ -1,13 +1,13 @@
 #include "clock_task.h"
 
 #include "esp_sntp.h"
-#include "secrets.h"
 
 // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "GMT0BST,M3.5.0/1,M10.5.0"
 
-const int sleepStart = 23;
-const int sleepEnd = 6;
+int sleepStart = 23;
+int sleepEnd = 6;
+int dateMin = 24;
 
 const int buttonPin = 12;
 const int ledR = 2;
@@ -49,7 +49,6 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
         splitflap_task_(splitflap_task),
         display_task_(display_task),
         logger_(logger),
-        wifi_client_(),
         lastTime_(0), lastCalibration_(0),
         sleep_(false), sleepToggle_(false),
         button_(buttonPin, true, true),
@@ -72,19 +71,33 @@ void ClockTask::connectWiFi()
     char buf[256];
 
     splitflap_task_.showString("wifi  ", NUM_MODULES, true);
-    logger_.log("Establishing connection to WiFi..");
-    snprintf(buf, sizeof(buf), "Wifi connecting to %s", WIFI_SSID);
-    display_task_.setMessage(1, String(buf));
+    logger_.log("Establishing connection to WiFi");
 
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.mode(WIFI_STA);
+    wifiManager_.setConfigPortalBlocking(false);
+    WiFiManagerParameter sleepTime("sleep_time", "Sleep Time (hr)", "23", 6);
+    WiFiManagerParameter wakeTime("wake_time", "Wake Time (hr)", "06", 6);
+    WiFiManagerParameter dateDisplay("date_display", "Date display (min)", "24", 6);
+    wifiManager_.addParameter(&sleepTime);
+    wifiManager_.addParameter(&wakeTime);
+    wifiManager_.addParameter(&dateDisplay);
+    wifiManager_.autoConnect("Splitflap", "splitflap");
 
-    while (WiFi.status() != WL_CONNECTED)
-        wait(1000);
+    while (WiFi.status() != WL_CONNECTED) {
+        wifiManager_.process();
+        wait(1);
+    }
+
+    sleepStart = atoi(sleepTime.getValue());
+    sleepEnd = atoi(wakeTime.getValue());
+    dateMin = atoi(dateDisplay.getValue());
+    snprintf(buf, sizeof(buf), "Sleep time %d/%d : Date display %d", sleepStart, sleepEnd, dateMin);
+    logger_.log(buf);
 
     splitflap_task_.showString("ready", NUM_MODULES, true);
-    snprintf(buf, sizeof(buf), "Connected to network %s", WIFI_SSID);
-    logger_.log(buf);
+    snprintf(buf, sizeof(buf), "Connected to network %s", wifiManager_.getWiFiSSID().c_str());
     display_task_.setMessage(1, String(buf));
+    logger_.log(buf);
 }
 
 void ClockTask::syncNTP()
@@ -158,9 +171,12 @@ void ClockTask::showDate(time_t now)
     char buf[NUM_MODULES + 1];
     struct tm ti = { 0 };
 
+    if (!dateMin)
+        return;
+
     localtime_r(&now, &ti);
 
-    if (ti.tm_min && (ti.tm_min % 24 == 0) && (ti.tm_sec == 4)) {
+    if (ti.tm_min && (ti.tm_min % dateMin == 0) && (ti.tm_sec == 4)) {
 
         if (NUM_MODULES == 6)
             strftime(buf, sizeof(buf), "%d%m%y", &ti);
@@ -206,20 +222,21 @@ void ClockTask::checkRecalibration()
 
 void ClockTask::reset()
 {
-    button_.reset();
     setLED(blueBlink);
-    wait(5000);
+    wait(5000, false);
 
+    wifiManager_.resetSettings();
     logger_.log("Restarting...");
     ESP.restart();
 }
 
-void ClockTask::wait(unsigned long msec)
+void ClockTask::wait(unsigned long msec, bool buttonUpdate)
 {
     unsigned long start = millis();
     do
     {
-        button_.tick();
+        if (buttonUpdate)
+            button_.tick();
         leds_.Update();
         delay(1);
     } while (millis() - start < msec);
