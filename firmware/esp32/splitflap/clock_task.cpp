@@ -11,6 +11,7 @@ int sleepEnd = 6;
 int dateMin = 24;
 
 unsigned int buttonSleepHours = 6;
+unsigned int recalTimeMins = 144;
 
 const int buttonPin = 12;
 const int ledR = 2;
@@ -244,10 +245,9 @@ void ClockTask::updateState(time_t now)
     buttonPress_ = false;
 }
 
-void ClockTask::checkRecalibration()
+void ClockTask::checkRecalibration(time_t now)
 {
-    unsigned long now = millis();
-    if (now - lastCalibration_ > 144 * 60 * 1000)
+    if (difftime(now, lastCalibration_) > recalTimeMins * 60)
     {
         splitflap_task_.resetAll();
         lastCalibration_ = now;
@@ -289,7 +289,7 @@ void ClockTask::setLED(JLed seq[3])
 
 void ClockTask::run()
 {
-    lastCalibration_ = millis();
+    time(&lastCalibration_);
     provision();
     syncNTP();
 
@@ -304,7 +304,7 @@ void ClockTask::run()
         {
             showClock(now);
             showDate(now);
-            checkRecalibration();
+            checkRecalibration(now);
 
             if (WiFi.status() != WL_CONNECTED)
                 WiFi.reconnect();

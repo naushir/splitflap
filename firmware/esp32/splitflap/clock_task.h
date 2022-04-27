@@ -29,7 +29,7 @@ class ClockTask : public Task<ClockTask>
         void showClock(time_t now);
         void showDate(time_t now);
         void updateState(time_t now);
-        void checkRecalibration();
+        void checkRecalibration(time_t now);
         void reset();
         void wait(unsigned long msec, bool buttonUpdate = true);
         void setLED(JLed seq[3]);
@@ -38,7 +38,7 @@ class ClockTask : public Task<ClockTask>
         DisplayTask& display_task_;
         Logger& logger_;
         time_t lastTime_;
-        unsigned long lastCalibration_;
+        time_t lastCalibration_;
         bool sleep_;
         bool buttonPress_;
         time_t buttonPressTime_;
