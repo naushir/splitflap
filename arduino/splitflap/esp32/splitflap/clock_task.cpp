@@ -10,6 +10,8 @@ int sleepStart = 23;
 int sleepEnd = 6;
 int dateMin = 24;
 
+unsigned int buttonSleepHours = 6;
+
 const int buttonPin = 12;
 const int ledR = 2;
 const int ledG = 15;
@@ -51,7 +53,7 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
         display_task_(display_task),
         logger_(logger),
         lastTime_(0), lastCalibration_(0),
-        sleep_(false), sleepToggle_(false),
+        sleep_(false), buttonPress_(false), buttonPressTime_(0),
         button_(buttonPin, true, true),
         leds_(JLedSequence(JLedSequence::eMode::PARALLEL, yellowBlink).Forever())
 {
@@ -67,7 +69,8 @@ ClockTask::ClockTask(SplitflapTask& splitflap_task, DisplayTask& display_task, L
             [](void *p)
             {
                 ((ClockTask *)p)->logger_.log("Sleep press");
-                ((ClockTask *)p)->sleepToggle_ = !((ClockTask *)p)->sleepToggle_;
+                ((ClockTask *)p)->buttonPress_ = true;
+                time(&((ClockTask *)p)->buttonPressTime_);
             }, this);
 }
 
@@ -219,22 +222,26 @@ void ClockTask::updateState(time_t now)
 {
     struct tm ti = { 0 };
 
+    if (!buttonPress_ && difftime(now, buttonPressTime_) < buttonSleepHours * 60 * 60)
+        return;
+
     localtime_r(&now, &ti);
 
-    if (!sleep_ && (sleepToggle_ || (ti.tm_hour >= sleepStart || ti.tm_hour < sleepEnd)))
+    if (!sleep_ && (buttonPress_ || (ti.tm_hour >= sleepStart || ti.tm_hour < sleepEnd)))
     {
         logger_.log("Entering sleep");
         splitflap_task_.showString("      ", NUM_MODULES, false);
         setLED(redBreathe);
         sleep_ = true;
     }
-    else if (sleep_ && (!sleepToggle_ && (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart)))
+    else if (sleep_ && (buttonPress_ || (ti.tm_hour >= sleepEnd && ti.tm_hour < sleepStart)))
     {
         logger_.log("Waking from sleep");
         setLED(whiteBreathe);
         sleep_ = false;
-        sleepToggle_ = false;
     }
+
+    buttonPress_ = false;
 }
 
 void ClockTask::checkRecalibration()

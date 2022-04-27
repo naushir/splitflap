@@ -40,7 +40,8 @@ class ClockTask : public Task<ClockTask>
         time_t lastTime_;
         unsigned long lastCalibration_;
         bool sleep_;
-        bool sleepToggle_;
+        bool buttonPress_;
+        time_t buttonPressTime_;
         OneButton button_;
         JLedSequence leds_;
         WiFiManager wifiManager_;
