@@ -100,7 +100,7 @@ void ClockTask::provision()
 
     Preferences p;
     p.begin("clock");
-    if (p.getInt("provisioned", 0))
+    if (p.getInt("provisioned", 0) == 0)
     {
         sleepStart = atoi(sleepTime.getValue());
         sleepEnd = atoi(wakeTime.getValue());
