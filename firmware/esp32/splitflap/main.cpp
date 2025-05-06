@@ -26,7 +26,10 @@
 #include "clock_task.h"
 #include "display_task.h"
 #include "serial_task.h"
+
+#if ENABLE_OTA
 #include "ota_task.h"
+#endif
 
 Configuration config;
 
