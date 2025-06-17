@@ -6,12 +6,12 @@
 // See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "GMT0BST,M3.5.0/1,M10.5.0"
 
-int sleepStart = 23;
+int sleepStart = 20;
 int sleepEnd = 6;
-int dateMin = 24;
+int dateMin = 32;
 
 unsigned int buttonSleepHours = 6;
-unsigned int recalTimeMins = 144;
+unsigned int recalTimeMins = 256;
 
 const int buttonPin = 12;
 const int ledR = 2;
@@ -79,12 +79,12 @@ void ClockTask::provision()
 {
     char buf[256];
 
-    splitflap_task_.showString("wifi  ", NUM_MODULES, true);
+    splitflap_task_.showString("wifi", 4, true);
 
     WiFi.mode(WIFI_STA);
     wifiManager_.setConfigPortalBlocking(false);
 
-    WiFiManagerParameter sleepTime("sleep_time", "Sleep Time (hr)", "23", 4);
+    WiFiManagerParameter sleepTime("sleep_time", "Sleep Time (hr)", "20", 4);
     WiFiManagerParameter wakeTime("wake_time", "Wake Time (hr)", "06", 4);
     WiFiManagerParameter dateDisplay("date_display", "Date display (min)", "24", 4);
     wifiManager_.addParameter(&sleepTime);
@@ -120,7 +120,7 @@ void ClockTask::provision()
     }
     p.end();
 
-    splitflap_task_.showString("ready", NUM_MODULES, true);
+    splitflap_task_.showString("redy", 4, true);
 
     snprintf(buf, sizeof(buf), "Sleep time %d/%d : Date display %d", sleepStart, sleepEnd, dateMin);
     logger_.log(buf);
@@ -148,7 +148,7 @@ void ClockTask::syncNTP()
     sntp_init();
     wait(2000);
 
-    splitflap_task_.showString("sync  ", NUM_MODULES, true);
+    splitflap_task_.showString("sync", 4, true);
     logger_.log("Waiting for NTP time sync...");
     display_task_.setMessage(1, "Syncing NTP time");
 
@@ -189,10 +189,10 @@ void ClockTask::showClock(time_t now)
     if (lti.tm_sec != ti.tm_sec || lti.tm_min != ti.tm_min || lti.tm_hour != ti.tm_hour)
     {
         strftime(buf, sizeof(buf), "%I%M", &ti);
-        if (NUM_MODULES == 6)
-            snprintf(buf + 4, sizeof(buf) - 4, "%s", (ti.tm_hour >= 12) ? "pm" : "am");
-
-        splitflap_task_.showString(buf, NUM_MODULES, false);
+        //if (NUM_MODULES == 6)
+        //    snprintf(buf + 4, sizeof(buf) - 4, "%s", (ti.tm_hour >= 12) ? "pm" : "am");
+        //logger_.log(buf);
+        splitflap_task_.showString(buf, 4, false);
         lastTime_ = now;
     }
 }
@@ -209,12 +209,12 @@ void ClockTask::showDate(time_t now)
 
     if (ti.tm_min && (ti.tm_min % dateMin == 0) && (ti.tm_sec == 4))
     {
-        if (NUM_MODULES == 6)
-            strftime(buf, sizeof(buf), "%d%m%y", &ti);
-        else
-            strftime(buf, sizeof(buf), "%d%m", &ti);
+        //if (NUM_MODULES == 6)
+        //    strftime(buf, sizeof(buf), "%d%m%y", &ti);
+        //else
+        strftime(buf, sizeof(buf), "%d%m", &ti);
 
-        splitflap_task_.showString(buf, NUM_MODULES, false);
+        splitflap_task_.showString(buf, 4, false);
         wait(30 * 1000);
     }
 }
@@ -231,7 +231,7 @@ void ClockTask::updateState(time_t now)
     if (!sleep_ && (buttonPress_ || (ti.tm_hour >= sleepStart || ti.tm_hour < sleepEnd)))
     {
         logger_.log("Entering sleep");
-        splitflap_task_.showString("      ", NUM_MODULES, false);
+        splitflap_task_.showString("    ", 4, false);
         setLED(redBreathe);
         sleep_ = true;
     }
